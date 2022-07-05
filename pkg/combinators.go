@@ -4,11 +4,6 @@ import (
 	"github.com/mattfenwick/gunparse/pkg/maybeerror"
 )
 
-// Unit represents the Haskell value `()`
-type Unit struct{}
-
-var UnitC = &Unit{}
-
 type Parser[E, S, T, A any] struct {
 	Parse func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]]
 }
@@ -318,29 +313,32 @@ func MapError[E, S, T, A any](f func(E) E, parser *Parser[E, S, T, A]) *Parser[E
 	return CatchError(parser, g)
 }
 
-/*
-// Commit: e -> Parser e s (m t) a -> Parser e s (m t) a
-func Commit(e interface{}, parser *Parser) *Parser {
-	return Alt([]*Parser{parser, Error(e)})
+func Commit[E, S, T, A any](e E, parser *Parser[E, S, T, A]) *Parser[E, S, T, A] {
+	return Alt([]*Parser[E, S, T, A]{parser, NewError[E, S, T, A](e)})
 }
 
-func AddError(e interface{}, parser *Parser) *Parser {
-	f := func(es interface{}) interface{} {
-		return append([]interface{}{e}, es.([]interface{}))
+func AddError[E, S, T, A any](e E, parser *Parser[[]E, S, T, A]) *Parser[[]E, S, T, A] {
+	f := func(es []E) []E {
+		return append([]E{e}, es...)
 	}
 	return MapError(f, parser)
 }
 
-// SepBy1     Parser e s (m t) a -> Parser e s (m t) b -> Parser e s (m t) (a, [(b, a)])
-func SepBy1(parser *Parser, separator *Parser) *Parser {
-	return App(id, []*Parser{parser, Many0(App(id, []*Parser{separator, parser}))})
+func SepBy1[E, S, T, A, B any](parser *Parser[E, S, T, A], separator *Parser[E, S, T, B]) *Parser[E, S, T, *SepByResult[A, B]] {
+	return App2(
+		NewSepByResult[A, B],
+		parser,
+		Many0(App2(NewPair[B, A], separator, parser)))
 }
 
-// SepBy0  Parser e s (m t) a -> Parser e s (m t) b -> Parser e s (m t) (Maybe (a, [(b, a)]))
-func SepBy0(parser *Parser, separator *Parser) *Parser {
-	return Optional(SepBy1(parser, separator), nil)
-}
+// TODO
+//func SepBy0[E, S, T, A, B any](parser *Parser[E, S, T, A], separator *Parser[E, S, T, B]) *Parser[E, S, T, *Maybe[*SepByResult[A, B]]] {
+//	return Optional[E, S, T, *Maybe[*SepByResult[A, B]]](
+//		SepBy1(parser, separator),
+//		maybeerror.NewFailure[*Unit, *Maybe[*SepByResult[A, B]]]())
+//}
 
+/*
 type Itemizer struct {
 	F    func(interface{}, interface{}) interface{}
 	Item *Parser
