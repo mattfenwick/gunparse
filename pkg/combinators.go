@@ -4,66 +4,64 @@ import (
 	"github.com/mattfenwick/gunparse/pkg/maybeerror"
 )
 
-// Parser ...
-type Parser struct {
-	Parse func(xs interface{}, s interface{}) *maybeerror.MaybeError
+type Parser[E, S, T, A any] struct {
+	Parse func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]]
 }
 
-// NewParser ...
-func NewParser(parse func(xs interface{}, s interface{}) *maybeerror.MaybeError) *Parser {
-	return &Parser{Parse: parse}
+func NewParser[E, S, T, A any](parse func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]]) *Parser[E, S, T, A] {
+	return &Parser[E, S, T, A]{Parse: parse}
 }
 
-func newParser(f func(xs interface{}, s interface{}) interface{}) *Parser {
-	g := func(xs interface{}, s interface{}) *maybeerror.MaybeError {
-		return f(xs, s).(*maybeerror.MaybeError)
+func newParser[E, S, T, A any](f func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]]) *Parser[E, S, T, A] {
+	g := func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]] {
+		return f(xs, s)
 	}
 	return NewParser(g)
 }
 
-// ParseResult ...
-type ParseResult struct {
-	Result interface{}
-	Rest   interface{}
-	State  interface{}
+type ParseResult[T, S, A any] struct {
+	Result A
+	Rest   []T
+	State  S
 }
 
-func result(value interface{}, rest interface{}, state interface{}) *ParseResult {
-	return &ParseResult{Result: value, Rest: rest, State: state}
+func result[T, S, A any](value A, rest []T, state S) *ParseResult[T, S, A] {
+	return &ParseResult[T, S, A]{Result: value, Rest: rest, State: state}
 }
 
-func good(value interface{}, rest interface{}, state interface{}) *maybeerror.MaybeError {
-	return maybeerror.Pure(result(value, rest, state))
+func good[E, S, T, A any](value A, rest []T, state S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]] {
+	return maybeerror.NewSuccess[E, *ParseResult[T, S, A]](result(value, rest, state))
 }
 
-// Pure ...
-func Pure(x interface{}) *Parser {
-	f := func(xs interface{}, s interface{}) *maybeerror.MaybeError {
-		return good(x, xs, s)
+func Pure[E, S, T, A any](x A) *Parser[E, S, T, A] {
+	f := func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]] {
+		return good[E, S, T, A](x, xs, s)
 	}
 	return NewParser(f)
 }
 
-// Zero ...
-var Zero = NewParser(func(xs interface{}, s interface{}) *maybeerror.MaybeError { return maybeerror.Zero })
-
-// Error ...
-func Error(e interface{}) *Parser {
-	return NewParser(func(xs interface{}, s interface{}) *maybeerror.MaybeError { return maybeerror.Error(e) })
+func NewZero[E, S, T, A any]() *Parser[E, S, T, A] {
+	return NewParser[E, S, T, A](func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]] {
+		return maybeerror.NewFailure[E, *ParseResult[T, S, A]]()
+	})
 }
 
-// Fmap ...
-func Fmap(g func(interface{}) interface{}, parser *Parser) *Parser {
-	h := func(pi interface{}) interface{} {
-		p := pi.(*ParseResult)
-		return &ParseResult{Result: g(p.Result), Rest: p.Rest, State: p.State}
-	}
-	f := func(xs interface{}, s interface{}) *maybeerror.MaybeError {
-		return parser.Parse(xs, s).Fmap(h)
-	}
-	return NewParser(f)
+func NewError[E, S, T, A any](e E) *Parser[E, S, T, A] {
+	return NewParser[E, S, T, A](func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]] {
+		return maybeerror.NewError[E, *ParseResult[T, S, A]](e)
+	})
 }
 
+func Fmap[E, S, T, A, B any](g func(A) B, parser *Parser[E, S, T, A]) *Parser[E, S, T, B] {
+	h := func(p *ParseResult[T, S, A]) *ParseResult[T, S, B] {
+		return &ParseResult[T, S, B]{Result: g(p.Result), Rest: p.Rest, State: p.State}
+	}
+	return NewParser[E, S, T, B](func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, B]] {
+		return maybeerror.Fmap(parser.Parse(xs, s), h)
+	})
+}
+
+/*
 // Bind ...
 func Bind(parser *Parser, g func(interface{}) *Parser) *Parser {
 	f := func(xs interface{}, s interface{}) *maybeerror.MaybeError {
@@ -322,7 +320,7 @@ func (it *Itemizer) item() *Parser {
 	}
 	return NewParser(g)
 }
-
+*/
 /*
 class Itemizer(object):
 

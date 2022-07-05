@@ -1,45 +1,45 @@
 package pkg
 
-func compose(f func(interface{}) interface{}, g func(interface{}) interface{}) func(interface{}) interface{} {
-	return func(x interface{}) interface{} {
+func compose[A, B, C any](f func(B) C, g func(A) B) func(A) C {
+	return func(x A) C {
 		return f(g(x))
 	}
 }
 
-func first(x interface{}, y interface{}) interface{} {
+func first[A, B any](x A, y B) A {
 	return x
 }
 
-func second(x interface{}, y interface{}) interface{} {
+func second[A, B any](x A, y B) B {
 	return y
 }
 
-func pair(x interface{}, y interface{}) []interface{} {
-	return []interface{}{x, y}
-}
+//func pair[A, B any](x A, y B) {
+//	return []interface{}{x, y}
+//}
 
-func constF(x interface{}) func(interface{}) interface{} {
-	return func(y interface{}) interface{} {
+func constF[A, B any](x A) func(B) A {
+	return func(y B) A {
 		return x
 	}
 }
 
-func id(x interface{}) interface{} {
+func id[A any](x A) A {
 	return x
 }
 
 //def cons(first, rest):
 //    return [first] + rest
 
-func replicate(count int, item interface{}) []interface{} {
-	out := make([]interface{}, count)
+func replicate[A any](count int, item A) []A {
+	out := make([]A, count)
 	for i := 0; i < count; i++ {
 		out[i] = item
 	}
 	return out
 }
 
-func flipApply(x interface{}, f func(interface{}) interface{}) interface{} {
+func flipApply[A, B any](x A, f func(A) B) B {
 	return f(x)
 }
 

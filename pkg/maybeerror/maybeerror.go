@@ -1,106 +1,86 @@
 package maybeerror
 
-import "fmt"
+type Failure struct{}
 
-// Status ...
-type Status int
+var FailureC = &Failure{}
 
-// .....
-const (
-	StatusSuccess Status = iota
-	StatusFailure Status = iota
-	StatusError   Status = iota
-)
-
-// String .....
-func (status Status) String() string {
-	switch status {
-	case StatusSuccess:
-		return "StatusSuccess"
-	case StatusFailure:
-		return "StatusFailure"
-	case StatusError:
-		return "StatusError"
-	}
-	panic(fmt.Errorf("invalid Status value: %d", status))
+type Success[A any] struct {
+	Value A
 }
 
-// MarshalJSON .....
-func (status Status) MarshalJSON() ([]byte, error) {
-	jsonString := fmt.Sprintf(`"%s"`, status.String())
-	return []byte(jsonString), nil
+type Error[E any] struct {
+	Value E
 }
 
-// MarshalText .....
-func (status Status) MarshalText() (text []byte, err error) {
-	return []byte(status.String()), nil
+type MaybeError[E any, A any] struct {
+	Success *Success[A]
+	Failure *Failure
+	Error   *Error[E]
 }
 
-// MaybeError ...
-type MaybeError struct {
-	Status Status
-	Value  interface{}
+func NewSuccess[E any, A any](value A) *MaybeError[E, A] {
+	return &MaybeError[E, A]{Success: &Success[A]{Value: value}}
 }
 
-// NewMaybeError ...
-func NewMaybeError(status Status, value interface{}) *MaybeError {
-	return &MaybeError{Status: status, Value: value}
+func NewError[E any, A any](error E) *MaybeError[E, A] {
+	return &MaybeError[E, A]{Error: &Error[E]{Value: error}}
 }
 
-// Pure ...
-func Pure(value interface{}) *MaybeError {
-	return NewMaybeError(StatusSuccess, value)
+func NewFailure[E any, A any]() *MaybeError[E, A] {
+	return &MaybeError[E, A]{Failure: FailureC}
 }
 
-// Error ...
-func Error(value interface{}) *MaybeError {
-	return NewMaybeError(StatusError, value)
-}
-
-// Fmap ...
-func (me *MaybeError) Fmap(f func(interface{}) interface{}) *MaybeError {
-	if me.Status == StatusSuccess {
-		return Pure(f(me.Value))
-	}
-	return me
-}
-
-// App ...
-func App(f func([]interface{}) interface{}, vals ...*MaybeError) *MaybeError {
-	args := make([]interface{}, len(vals))
-	for i, v := range vals {
-		if v.Status == StatusSuccess {
-			args[i] = v.Value
-		} else {
-			return v
+// IsValid is a debugging check
+func (m *MaybeError[E, A]) IsValid() bool {
+	present := 0
+	for _, v := range []interface{}{m.Success, m.Failure, m.Error} {
+		if v != nil {
+			present++
 		}
 	}
-	return Pure(f(args))
+	return present == 1
 }
 
-// Bind ...
-func (me *MaybeError) Bind(f func(interface{}) *MaybeError) *MaybeError {
-	if me.Status == StatusSuccess {
-		return f(me.Value)
+func Fmap[E, A, B any](m *MaybeError[E, A], f func(a A) B) *MaybeError[E, B] {
+	if m.Success != nil {
+		return NewSuccess[E, B](f(m.Success.Value))
+	} else if m.Failure != nil {
+		return NewFailure[E, B]()
 	}
-	return me
+	return NewError[E, B](m.Error.Value)
 }
 
-// MapError ...
-func (me *MaybeError) MapError(f func(interface{}) interface{}) *MaybeError {
-	if me.Status == StatusError {
-		return Error(f(me.Value))
+func App2[E, A, B, C any](f func(A, B) C, m1 *MaybeError[E, A], m2 *MaybeError[E, B]) *MaybeError[E, C] {
+	return Bind[E, A, C](m1, func(a A) *MaybeError[E, C] {
+		return Bind[E, B, C](m2, func(b B) *MaybeError[E, C] {
+			return NewSuccess[E, C](f(a, b))
+		})
+	})
+}
+
+func Bind[E, A, B any](m *MaybeError[E, A], f func(A) *MaybeError[E, B]) *MaybeError[E, B] {
+	if m.Success != nil {
+		return f(m.Success.Value)
+	} else if m.Failure != nil {
+		return NewFailure[E, B]()
 	}
-	return me
+	return NewError[E, B](m.Error.Value)
 }
 
-// Plus ...
-func (me *MaybeError) Plus(other *MaybeError) *MaybeError {
-	if me.Status == StatusFailure {
+func MapError[E1, E2, A any](m *MaybeError[E1, A], f func(E1) E2) *MaybeError[E2, A] {
+	if m.Success != nil {
+		return NewSuccess[E2, A](m.Success.Value)
+	} else if m.Failure != nil {
+		return NewFailure[E2, A]()
+	}
+	return NewError[E2, A](f(m.Error.Value))
+}
+
+func (m *MaybeError[E, A]) Plus(other *MaybeError[E, A]) *MaybeError[E, A] {
+	if m.Success != nil {
+		return m
+	} else if m.Failure != nil {
 		return other
 	}
-	return me
+	return m
 }
-
-// Zero ...
-var Zero = NewMaybeError(StatusFailure, nil)
