@@ -4,8 +4,10 @@ import (
 	"github.com/mattfenwick/gunparse/pkg/maybeerror"
 )
 
-// Unit represents the Haskell value `()` -- TODO delete?
-//type Unit struct {}
+// Unit represents the Haskell value `()`
+type Unit struct{}
+
+var UnitC = &Unit{}
 
 type Parser[E, S, T, A any] struct {
 	Parse func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]]
@@ -175,29 +177,12 @@ func Seq[E, S, T, A any](parsers []*Parser[E, S, T, A]) *Parser[E, S, T, []A] {
 	return NewParser(f)
 }
 
-/*
-// TODO intent:
-//   Parser e s (m t) (a -> ... -> z) -> Parser e s (m t) a -> ... -> Parser e s (m t) z
-// how best to do this?
-func AppP(p *Parser, parsers []*Parser) *Parser {
-	g := func(fi interface{}) *Parser {
-		f := fi.(func(interface{}) interface{})
-		return Fmap(func(args interface{}) interface{} { return f(args) }, Seq(parsers))
-	}
-	return Bind(p, g)
-}
-*/
-
 func AppP[E, S, T, A, B any](p1 *Parser[E, S, T, func(A) B], p2 *Parser[E, S, T, A]) *Parser[E, S, T, B] {
 	return Bind[E, S, T, func(A) B](p1, func(f func(A) B) *Parser[E, S, T, B] {
 		return Bind[E, S, T, A](p2, func(x A) *Parser[E, S, T, B] {
 			return Pure[E, S, T, B](f(x))
 		})
 	})
-}
-
-func App[E, S, T, A, B any](f func(A) B, p *Parser[E, S, T, A]) *Parser[E, S, T, B] {
-	return AppP[E, S, T, A, B](Pure[E, S, T, func(A) B](f), p)
 }
 
 func AppP2[E, S, T, A, B, C any](
@@ -213,8 +198,39 @@ func AppP2[E, S, T, A, B, C any](
 	})
 }
 
-func App2[E, S, T, A, B, C any](f func(A, B) C, p1 *Parser[E, S, T, A], p2 *Parser[E, S, T, B]) *Parser[E, S, T, C] {
+func AppP3[E, S, T, A, B, C, D any](
+	p1 *Parser[E, S, T, func(A, B, C) D],
+	p2 *Parser[E, S, T, A],
+	p3 *Parser[E, S, T, B],
+	p4 *Parser[E, S, T, C]) *Parser[E, S, T, D] {
+	return Bind[E, S, T, func(A, B, C) D](p1, func(f func(A, B, C) D) *Parser[E, S, T, D] {
+		return Bind[E, S, T, A](p2, func(x A) *Parser[E, S, T, D] {
+			return Bind[E, S, T, B](p3, func(y B) *Parser[E, S, T, D] {
+				return Bind[E, S, T, C](p4, func(z C) *Parser[E, S, T, D] {
+					return Pure[E, S, T, D](f(x, y, z))
+				})
+			})
+		})
+	})
+}
+
+func App[E, S, T, A, B any](f func(A) B, p *Parser[E, S, T, A]) *Parser[E, S, T, B] {
+	return AppP[E, S, T, A, B](Pure[E, S, T, func(A) B](f), p)
+}
+
+func App2[E, S, T, A, B, C any](
+	f func(A, B) C,
+	p1 *Parser[E, S, T, A],
+	p2 *Parser[E, S, T, B]) *Parser[E, S, T, C] {
 	return AppP2[E, S, T, A, B, C](Pure[E, S, T, func(A, B) C](f), p1, p2)
+}
+
+func App3[E, S, T, A, B, C, D any](
+	f func(A, B, C) D,
+	p1 *Parser[E, S, T, A],
+	p2 *Parser[E, S, T, B],
+	p3 *Parser[E, S, T, C]) *Parser[E, S, T, D] {
+	return AppP3[E, S, T, A, B, C](Pure[E, S, T, func(A, B, C) D](f), p1, p2, p3)
 }
 
 func Seq2L[E, S, T, A, B any](p1 *Parser[E, S, T, A], p2 *Parser[E, S, T, B]) *Parser[E, S, T, A] {
@@ -239,71 +255,70 @@ func Repeat[E, S, T, A any](count int, parser *Parser[E, S, T, A]) *Parser[E, S,
 	return Seq(parsers)
 }
 
-/*
-func Lookahead(parser *Parser) *Parser {
-	g := func(xs interface{}) *Parser {
-		h := func(s interface{}) *Parser {
-			f := func(a interface{}) interface{} {
-				return a.([]interface{})[0]
-			}
-			return App(f, []*Parser{parser, Put(xs), PutState(s)})
-		}
-		return Bind(GetState, h)
-	}
-	return Bind(Get, g)
+func Lookahead[E, S, T, A any](parser *Parser[E, S, T, A]) *Parser[E, S, T, A] {
+	return Bind(Get[E, S, T](), func(xs []T) *Parser[E, S, T, A] {
+		return Bind(GetState[E, S, T](), func(s S) *Parser[E, S, T, A] {
+			return Bind(parser, func(a A) *Parser[E, S, T, A] {
+				return App2(
+					func(_ []T, _ S) A { return a },
+					Put[E, S, T](xs),
+					PutState[E, S, T](s))
+			})
+		})
+	})
 }
 
-func Not0(parser *Parser) *Parser {
-	f := func(xs interface{}, s interface{}) *maybeerror.MaybeError {
+func Not0[E, S, T, A any](parser *Parser[E, S, T, A]) *Parser[E, S, T, *Unit] {
+	f := func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, *Unit]] {
 		r := parser.Parse(xs, s)
-		switch r.Status {
-		case maybeerror.StatusError:
-			return r
-		case maybeerror.StatusSuccess:
-			return maybeerror.Zero
-		default:
-			return good(nil, xs, s)
+		if r.Error != nil {
+			return maybeerror.NewError[E, *ParseResult[T, S, *Unit]](r.Error.Value)
+		} else if r.Failure != nil {
+			return good[E, S, T, *Unit](UnitC, xs, s)
 		}
+		return maybeerror.NewFailure[E, *ParseResult[T, S, *Unit]]()
 	}
 	return NewParser(f)
 }
 
-func Alt(parsers []*Parser) *Parser {
-	f := func(xs interface{}, s interface{}) *maybeerror.MaybeError {
-		r := maybeerror.Zero
+func Alt[E, S, T, A any](parsers []*Parser[E, S, T, A]) *Parser[E, S, T, A] {
+	f := func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]] {
 		for _, p := range parsers {
-			r = p.Parse(xs, s)
-			if r.Status != maybeerror.StatusFailure {
+			r := p.Parse(xs, s)
+			if r.Success != nil {
+				return r
+			} else if r.Error != nil {
 				return r
 			}
 		}
-		return r
+		return maybeerror.NewFailure[E, *ParseResult[T, S, A]]()
 	}
 	return NewParser(f)
 }
 
-func Optional(parser *Parser, defaultValue interface{}) *Parser {
-	return Alt([]*Parser{parser, Pure(defaultValue)})
+func Optional[E, S, T, A any](parser *Parser[E, S, T, A], defaultValue A) *Parser[E, S, T, A] {
+	return Alt[E, S, T, A]([]*Parser[E, S, T, A]{parser, Pure[E, S, T, A](defaultValue)})
 }
 
-func CatchError(parser *Parser, f func(interface{}) *Parser) *Parser {
-	g := func(xs interface{}, s interface{}) *maybeerror.MaybeError {
+func CatchError[E, S, T, A any](parser *Parser[E, S, T, A], f func(E) *Parser[E, S, T, A]) *Parser[E, S, T, A] {
+	g := func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]] {
 		v := parser.Parse(xs, s)
-		if v.Status == maybeerror.StatusError {
-			return f(v.Value).Parse(xs, s)
+		if v.Error != nil {
+			return f(v.Error.Value).Parse(xs, s)
 		}
 		return v
 	}
 	return NewParser(g)
 }
 
-func MapError(f func(interface{}) interface{}, parser *Parser) *Parser {
-	g := func(e interface{}) *Parser {
-		return Error(f(e))
+func MapError[E, S, T, A any](f func(E) E, parser *Parser[E, S, T, A]) *Parser[E, S, T, A] {
+	g := func(e E) *Parser[E, S, T, A] {
+		return NewError[E, S, T, A](f(e))
 	}
 	return CatchError(parser, g)
 }
 
+/*
 // Commit: e -> Parser e s (m t) a -> Parser e s (m t) a
 func Commit(e interface{}, parser *Parser) *Parser {
 	return Alt([]*Parser{parser, Error(e)})
