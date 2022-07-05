@@ -43,6 +43,14 @@ func flipApply[A, B any](x A, f func(A) B) B {
 	return f(x)
 }
 
+func mapList[A, B any](f func(A) B, xs []A) []B {
+	out := make([]B, len(xs))
+	for i, x := range xs {
+		out[i] = f(x)
+	}
+	return out
+}
+
 /*
 TODO
 

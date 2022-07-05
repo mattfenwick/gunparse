@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"github.com/mattfenwick/gunparse/pkg/maybeerror"
+	"reflect"
 )
 
 type Parser[E, S, T, A any] struct {
@@ -331,68 +332,62 @@ func SepBy1[E, S, T, A, B any](parser *Parser[E, S, T, A], separator *Parser[E, 
 		Many0(App2(NewPair[B, A], separator, parser)))
 }
 
-// TODO
-//func SepBy0[E, S, T, A, B any](parser *Parser[E, S, T, A], separator *Parser[E, S, T, B]) *Parser[E, S, T, *Maybe[*SepByResult[A, B]]] {
-//	return Optional[E, S, T, *Maybe[*SepByResult[A, B]]](
-//		SepBy1(parser, separator),
-//		maybeerror.NewFailure[*Unit, *Maybe[*SepByResult[A, B]]]())
-//}
-
-/*
-type Itemizer struct {
-	F    func(interface{}, interface{}) interface{}
-	Item *Parser
+// SepBy0 is similar to SepBy1, except that if no instance of `parser` is found,
+//   it presents a value of `nil`.  TODO is this a bad idea?  Should there be a Maybe wrapper instead?
+func SepBy0[E, S, T, A, B any](parser *Parser[E, S, T, A], separator *Parser[E, S, T, B]) *Parser[E, S, T, *SepByResult[A, B]] {
+	return Optional[E, S, T, *SepByResult[A, B]](SepBy1[E, S, T, A, B](parser, separator), nil)
 }
 
-func NewItemizer(f func(interface{}, interface{}) interface{}) *Itemizer {
-	it := &Itemizer{F: f}
+type Itemizer[E, S, T any] struct {
+	ProcessState func(T, S) S
+	Item         *Parser[E, S, T, T]
+}
+
+func NewItemizer[E, S, T any](processState func(T, S) S) *Itemizer[E, S, T] {
+	it := &Itemizer[E, S, T]{ProcessState: processState}
 	it.Item = it.item()
 	return it
 }
 
-func (it *Itemizer) item() *Parser {
-	g := func(xs interface{}, s interface{}) *maybeerror.MaybeError {
-		ys := xs.([]interface{})
-		if len(ys) == 0 {
-			return maybeerror.Zero
+func (i *Itemizer[E, S, T]) item() *Parser[E, S, T, T] {
+	g := func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, T]] {
+		if len(xs) == 0 {
+			return maybeerror.NewFailure[E, *ParseResult[T, S, T]]()
 		}
-		first := ys[0]
-		rest := ys[1:]
-		return good(first, rest, it.F(first, s))
+		head := xs[0]
+		tail := xs[1:]
+		return good[E, S, T, T](head, tail, i.ProcessState(head, s))
 	}
 	return NewParser(g)
 }
-*/
+
+func (i *Itemizer[E, S, T]) Satisfy(pred func(T) bool) *Parser[E, S, T, T] {
+	return Check(pred, i.Item)
+}
+
+func (i *Itemizer[E, S, T]) Literal(x T) *Parser[E, S, T, T] {
+	return i.Satisfy(func(y T) bool {
+		// TODO should we add an equality constraint instead of using reflection?
+		return reflect.DeepEqual(x, y)
+	})
+}
+
+func Not1[E, S, T, A any](i *Itemizer[E, S, T], parser *Parser[E, S, T, A]) *Parser[E, S, T, T] {
+	return Seq2R(Not0(parser), i.Item)
+}
+
+func (i *Itemizer[E, S, T]) MatchString(xs []T) *Parser[E, S, T, []T] {
+	return Seq(mapList(i.Literal, xs))
+}
+
+func (i *Itemizer[E, S, T]) OneOf(elems []T) *Parser[E, S, T, T] {
+	// TODO need equality constraint
+	//j := map[T]bool{}
+	panic("TODO")
+}
+
 /*
 class Itemizer(object):
-
-    def satisfy(self, pred):
-        '''
-        (t -> Bool) -> Parser e s (m t) t
-        '''
-        checkFunction('satisfy', pred)
-        return check(pred, self.item)
-
-    def literal(self, x):
-        '''
-        Eq t => t -> Parser e s (m t) t
-        '''
-        return self.satisfy(lambda y: x == y)
-
-    def not1(self, parser):
-        '''
-        Parser e s (m t) a -> Parser e s (m t) t
-        '''
-        checkParser('not1', parser)
-        return seq2R(not0(parser), self.item)
-
-    def string(self, elems):
-        '''
-        Eq t => [t] -> Parser e s (m t) [t]
-        '''
-        matcher = seq(list(map(self.literal, elems)))
-        return seq2R(matcher, pure(elems))
-
     def oneOf(self, elems):
         c_set = set(elems)
         return self.satisfy(lambda x: x in c_set)
