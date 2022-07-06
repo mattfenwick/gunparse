@@ -13,6 +13,10 @@ func NewParser[E, S, T, A any](parse func(xs []T, s S) *maybeerror.MaybeError[E,
 	return &Parser[E, S, T, A]{Parse: parse}
 }
 
+func (p *Parser[E, S, T, A]) Run(input []T, state S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]] {
+	return p.Parse(input, state)
+}
+
 func newParser[E, S, T, A any](f func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]]) *Parser[E, S, T, A] {
 	g := func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]] {
 		return f(xs, s)
@@ -367,7 +371,6 @@ func (i *Itemizer[E, S, T]) Satisfy(pred func(T) bool) *Parser[E, S, T, T] {
 
 func (i *Itemizer[E, S, T]) Literal(x T) *Parser[E, S, T, T] {
 	return i.Satisfy(func(y T) bool {
-		// TODO should we add an equality constraint instead of using reflection?
 		return reflect.DeepEqual(x, y)
 	})
 }
@@ -381,29 +384,33 @@ func (i *Itemizer[E, S, T]) MatchString(xs []T) *Parser[E, S, T, []T] {
 }
 
 func (i *Itemizer[E, S, T]) OneOf(elems []T) *Parser[E, S, T, T] {
-	// TODO need equality constraint
-	//j := map[T]bool{}
-	panic("TODO")
+	elemSet := map[interface{}]bool{}
+	for _, e := range elems {
+		elemSet[e] = true
+	}
+	return i.Satisfy(func(t T) bool {
+		return elemSet[t]
+	})
 }
 
-/*
-class Itemizer(object):
-    def oneOf(self, elems):
-        c_set = set(elems)
-        return self.satisfy(lambda x: x in c_set)
+func BasicItemizer[E, S, T any]() *Itemizer[E, S, T] {
+	return NewItemizer[E, S, T](second[T, S])
+}
 
+func PositionItemizer[E any]() *Itemizer[E, *Pair[int, int], rune] {
+	return NewItemizer[E, *Pair[int, int], rune](func(t rune, s *Pair[int, int]) *Pair[int, int] {
+		// TODO verify that runes actually work fine like this
+		line, col := s.A, s.B
+		if t == '\n' {
+			return NewPair(line+1, 1)
+		} else {
+			return NewPair(line, col+1)
+		}
+	})
+}
 
-# doesn't do anything to the state
-basic    = Itemizer(functions.second)
-# assumes the state is a 2-tuple of integers (line, column)
-position = Itemizer(functions.updatePosition)
-# assumes that state is an integer -- how many tokens have been consumed
-count    = Itemizer(lambda _, s: s + 1)
-
-
-def run(parser, input_string, state=(1,1)):
-    '''
-    Run a parser given the token input and state.
-    '''
-    return parser.parse(ConsList(input_string), state)
-*/
+func CountItemizer[E, T any]() *Itemizer[E, int, T] {
+	return NewItemizer[E, int, T](func(t T, s int) int {
+		return s + 1
+	})
+}
