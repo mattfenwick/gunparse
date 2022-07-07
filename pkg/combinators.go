@@ -324,6 +324,10 @@ func Alt[E, S, T, A any](parsers []*Parser[E, S, T, A]) *Parser[E, S, T, A] {
 	return NewParser(f)
 }
 
+func AltSplat[E, S, T, A any](parsers ...*Parser[E, S, T, A]) *Parser[E, S, T, A] {
+	return Alt(parsers)
+}
+
 func Optional[E, S, T, A any](parser *Parser[E, S, T, A], defaultValue A) *Parser[E, S, T, A] {
 	return Alt[E, S, T, A]([]*Parser[E, S, T, A]{parser, Pure[E, S, T, A](defaultValue)})
 }

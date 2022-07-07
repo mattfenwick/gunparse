@@ -41,3 +41,65 @@ func NewNumber(sign rune, integer []rune, decimal *Decimal, exponent *Exponent) 
 		Exponent: exponent,
 	}
 }
+
+type Character struct {
+	Value rune
+}
+
+func NewCharacter(value rune) *Character {
+	return &Character{
+		Value: value,
+	}
+}
+
+type Escape struct {
+	Open  rune
+	Value rune
+}
+
+func NewEscape(open rune, value rune) *Escape {
+	return &Escape{
+		Open:  open,
+		Value: value,
+	}
+}
+
+type UnicodeEscape struct {
+	Open  []rune
+	Value []rune
+}
+
+func NewUnicodeEscape(open []rune, value []rune) *UnicodeEscape {
+	return &UnicodeEscape{
+		Open:  open,
+		Value: value,
+	}
+}
+
+type JsonStringChar struct {
+	Char          *Character
+	Escape        *Escape
+	UnicodeEscape *UnicodeEscape
+}
+
+func NewJsonStringChar(char *Character, escape *Escape, unicodeescape *UnicodeEscape) *JsonStringChar {
+	return &JsonStringChar{
+		Char:          char,
+		Escape:        escape,
+		UnicodeEscape: unicodeescape,
+	}
+}
+
+type JsonString struct {
+	Open  rune
+	Value []*JsonStringChar
+	Close rune
+}
+
+func NewJsonString(open rune, value []*JsonStringChar, close rune) *JsonString {
+	return &JsonString{
+		Open:  open,
+		Value: value,
+		Close: close,
+	}
+}

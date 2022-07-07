@@ -14,14 +14,17 @@ from ..cst import (node, cut)
 var (
 	itemizer = pkg.PositionItemizer[ParseError]()
 
-	item        = itemizer.Item
-	literal     = itemizer.Literal
-	satisfy     = itemizer.Satisfy
-	matchString = itemizer.MatchString
+	item    = itemizer.Item
+	literal = itemizer.Literal
+	satisfy = itemizer.Satisfy
 )
 
 func oneOf(s string) *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, rune] {
 	return itemizer.OneOf(stringToRunes(s))
+}
+
+func matchString(s string) *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, []rune] {
+	return itemizer.MatchString(stringToRunes(s))
 }
 
 func not1[A any](p *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, A]) *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, rune] {
@@ -53,42 +56,49 @@ var (
 		pkg.Cut("digits", _digits),
 		pkg.Optional(_decimal, nil),
 		pkg.Optional(_exponent, nil))
+
+	_number_2 = pkg.App4(NewNumber,
+		pkg.Pure[ParseError, *pkg.Pair[int, int], rune]('+'),
+		_digits,
+		pkg.Optional(_decimal, nil),
+		pkg.Optional(_exponent, nil))
+
+	// there are two number patterns solely to get the error reporting right
+	//   if there's a `-` but a number can't be parsed, that's an error
+	_number = pkg.AltSplat(_number_1, _number_2)
+
+	_char = pkg.App(NewCharacter, not1(oneOf("\\\"")))
+
+	// this allows *any* character to be escaped
+	//   invalid characters are handled by a later pass
+	//   this assumes that doing so will not change the
+	//   overall structure of the parse result
+	_escape = pkg.App2(NewEscape,
+		literal('\\'),
+		item)
+
+	_hexC = oneOf("0123456789abcdefABCDEF")
+
+	_unic = pkg.App2(NewUnicodeEscape,
+		matchString("\\u"),
+		pkg.Cut("4 hexadecimal digits", pkg.Repeat(4, _hexC)))
+
+	_nilEscape        = pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *Escape](nil)
+	_nilUnicodeEscape = pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *UnicodeEscape](nil)
+
+	_jsonStringChar = pkg.AltSplat[ParseError, *pkg.Pair[int, int], rune, *JsonStringChar](
+		pkg.App3(NewJsonStringChar, _char, _nilEscape, _nilUnicodeEscape),
+		pkg.App3(NewJsonStringChar, pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *Character](nil), pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *Escape](nil), _unic),
+		pkg.App3(NewJsonStringChar, pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *Character](nil), _escape, pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *UnicodeEscape](nil)),
+	)
+
+	_jsonString = pkg.App3(NewJsonString,
+		literal('"'),
+		pkg.Many0(_jsonStringChar),
+		pkg.Cut("double-quote", literal('"')))
 )
 
 /*
-_number_1 = node('number',
-                 ('sign', literal('-')),
-                 ('integer', cut('digits', _digits)),
-                 ('decimal', optional(_decimal)),
-                 ('exponent', optional(_exponent)))
-
-_number_2 = node('number',
-                 ('sign', pure(None)), # this is to make the result match the schema of _number_1's result
-                 ('integer', _digits),
-                 ('decimal', optional(_decimal)),
-                 ('exponent', optional(_exponent)))
-
-# there are two number patterns solely to get the error reporting right
-#   if there's a `-` but a number can't be parsed, that's an error
-_number = alt([_number_1, _number_2])
-
-_char = node('character',
-             ('value', not1(oneOf('\\"'))))
-
-# yes, this allows *any* character to be escaped
-#   invalid characters are handled by a later pass
-#   this assumes that doing so will not change the
-#   overall structure of the parse result
-_escape = node('escape',
-               ('open', literal('\\')),
-               ('value', item))
-
-_hexC = oneOf('0123456789abcdefABCDEF')
-
-_unic = node('unicode escape',
-             ('open', string('\\u')),
-             ('value', cut('4 hexadecimal digits', repeat(4, _hexC))))
-
 _jsonstring = node('string',
                    ('open', literal('"')),
                    ('value', many0(alt([_char, _unic, _escape]))),

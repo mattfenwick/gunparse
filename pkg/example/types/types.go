@@ -41,6 +41,22 @@ var (
 			{"Integer", "[]rune"},
 			{"Decimal", "*Decimal"},
 			{"Exponent", "*Exponent"}}},
+		{"Character", []*Field{
+			{"Value", "rune"}}},
+		{"Escape", []*Field{
+			{"Open", "rune"},
+			{"Value", "rune"}}},
+		{"UnicodeEscape", []*Field{
+			{"Open", "[]rune"},
+			{"Value", "[]rune"}}},
+		{"JsonStringChar", []*Field{
+			{"Char", "*Character"},
+			{"Escape", "*Escape"},
+			{"UnicodeEscape", "*UnicodeEscape"}}},
+		{"JsonString", []*Field{
+			{"Open", "rune"},
+			{"Value", "[]*JsonStringChar"},
+			{"Close", "rune"}}},
 	}
 )
 
