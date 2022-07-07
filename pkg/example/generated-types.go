@@ -103,3 +103,73 @@ func NewJsonString(open rune, value []*JsonStringChar, close rune) *JsonString {
 		Close: close,
 	}
 }
+
+type Keyword struct {
+	Value []rune
+}
+
+func NewKeyword(value []rune) *Keyword {
+	return &Keyword{
+		Value: value,
+	}
+}
+
+type KeyValPair struct {
+	Key   *JsonString
+	Colon rune
+	Value *JsonValue
+}
+
+func NewKeyValPair(key *JsonString, colon rune, value *JsonValue) *KeyValPair {
+	return &KeyValPair{
+		Key:   key,
+		Colon: colon,
+		Value: value,
+	}
+}
+
+type Array struct {
+	Open  rune
+	Body  []*JsonValue
+	Close rune
+}
+
+func NewArray(open rune, body []*JsonValue, close rune) *Array {
+	return &Array{
+		Open:  open,
+		Body:  body,
+		Close: close,
+	}
+}
+
+type Object struct {
+	Open  rune
+	Body  []*KeyValPair
+	Close rune
+}
+
+func NewObject(open rune, body []*KeyValPair, close rune) *Object {
+	return &Object{
+		Open:  open,
+		Body:  body,
+		Close: close,
+	}
+}
+
+type JsonValue struct {
+	String  *JsonString
+	Number  *Number
+	Keyword *Keyword
+	Object  *Object
+	Array   *Array
+}
+
+func NewJsonValue(string *JsonString, number *Number, keyword *Keyword, object *Object, array *Array) *JsonValue {
+	return &JsonValue{
+		String:  string,
+		Number:  number,
+		Keyword: keyword,
+		Object:  object,
+		Array:   array,
+	}
+}

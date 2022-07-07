@@ -57,6 +57,26 @@ var (
 			{"Open", "rune"},
 			{"Value", "[]*JsonStringChar"},
 			{"Close", "rune"}}},
+		{"Keyword", []*Field{
+			{"Value", "[]rune"}}},
+		{"KeyValPair", []*Field{
+			{"Key", "*JsonString"},
+			{"Colon", "rune"},
+			{"Value", "*JsonValue"}}},
+		{"Array", []*Field{
+			{"Open", "rune"},
+			{"Body", "[]*JsonValue"},
+			{"Close", "rune"}}},
+		{"Object", []*Field{
+			{"Open", "rune"},
+			{"Body", "[]*KeyValPair"},
+			{"Close", "rune"}}},
+		{"JsonValue", []*Field{
+			{"String", "*JsonString"},
+			{"Number", "*Number"},
+			{"Keyword", "*Keyword"},
+			{"Object", "*Object"},
+			{"Array", "*Array"}}},
 	}
 )
 

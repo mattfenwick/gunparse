@@ -1,16 +1,23 @@
 package example
 
-import "github.com/mattfenwick/gunparse/pkg"
+import (
+	"github.com/mattfenwick/gunparse/pkg"
+	"github.com/mattfenwick/gunparse/pkg/utils"
+)
 
-type ParseError = []*pkg.Pair[string, *pkg.Pair[int, int]]
+type ErrorFrame = pkg.Pair[string, *pkg.Pair[int, int]]
+type ParseError = []*ErrorFrame
 
-/*
-from ..combinators import (many0,  optional,  app,   pure,
-                           seq2R,  many1,     seq,   alt,
-                           seq2L,  position,  not0,  error,
-                           sepBy0, sepBy1, repeat)
-from ..cst import (node, cut)
-*/
+func NewErrorFrame(message string, line int, col int) *pkg.Pair[string, *pkg.Pair[int, int]] {
+	return &pkg.Pair[string, *pkg.Pair[int, int]]{
+		A: message,
+		B: &pkg.Pair[int, int]{
+			A: line,
+			B: col,
+		},
+	}
+}
+
 var (
 	itemizer = pkg.PositionItemizer[ParseError]()
 
@@ -83,62 +90,87 @@ var (
 		matchString("\\u"),
 		pkg.Cut("4 hexadecimal digits", pkg.Repeat(4, _hexC)))
 
+	_nilChar          = pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *Character](nil)
 	_nilEscape        = pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *Escape](nil)
 	_nilUnicodeEscape = pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *UnicodeEscape](nil)
 
 	_jsonStringChar = pkg.AltSplat[ParseError, *pkg.Pair[int, int], rune, *JsonStringChar](
 		pkg.App3(NewJsonStringChar, _char, _nilEscape, _nilUnicodeEscape),
-		pkg.App3(NewJsonStringChar, pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *Character](nil), pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *Escape](nil), _unic),
-		pkg.App3(NewJsonStringChar, pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *Character](nil), _escape, pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *UnicodeEscape](nil)),
-	)
+		pkg.App3(NewJsonStringChar, _nilChar, _nilEscape, _unic),
+		pkg.App3(NewJsonStringChar, _nilChar, _escape, _nilUnicodeEscape))
 
 	_jsonString = pkg.App3(NewJsonString,
 		literal('"'),
 		pkg.Many0(_jsonStringChar),
 		pkg.Cut("double-quote", literal('"')))
+
+	_keyword = pkg.App(NewKeyword,
+		pkg.Alt(utils.MapList(matchString, []string{"true", "false", "null"})))
 )
 
-/*
-_jsonstring = node('string',
-                   ('open', literal('"')),
-                   ('value', many0(alt([_char, _unic, _escape]))),
-                   ('close', cut('double-quote', literal('"'))))
+func token[A any](p *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, A]) *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, A] {
+	return pkg.Seq2L(p, whitespace)
+}
 
-_keyword = node('keyword',
-                ('value', alt(list(map(string, ['true', 'false', 'null'])))))
+var (
+	jsonString = token(_jsonString)
+	number     = token(_number)
+	keyword    = token(_keyword)
 
-def tok(parser):
-    return seq2L(parser, whitespace)
+	os    = token(literal('['))
+	cs    = token(literal(']'))
+	oc    = token(literal('{'))
+	cc    = token(literal('}'))
+	comma = token(literal(','))
+	colon = token(literal(':'))
+)
 
-jsonstring, number, keyword = map(tok, [_jsonstring, _number, _keyword])
+var (
+	object     *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, *Object]     = nil
+	array      *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, *Array]      = nil
+	value      *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, *JsonValue]  = nil
+	keyValPair *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, *KeyValPair] = nil
+	json       *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, *JsonValue]  = nil
+)
 
-os, cs, oc, cc, comma, colon = map(lambda x: tok(literal(x)), '[]{},:')
+func init() {
+	// a hack to allow mutual recursion of rules
+	object = pkg.NewError[ParseError, *pkg.Pair[int, int], rune, *Object]([]*ErrorFrame{NewErrorFrame("unimplemented", -1, -1)})
+	array = pkg.NewError[ParseError, *pkg.Pair[int, int], rune, *Array]([]*ErrorFrame{NewErrorFrame("unimplemented", -1, -1)})
 
+	_nilJsonString := pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *JsonString](nil)
+	_nilNumber := pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *Number](nil)
+	_nilKeyword := pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *Keyword](nil)
+	_nilObject := pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *Object](nil)
+	_nilArray := pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *Array](nil)
 
-# a hack to allow mutual recursion of rules
-obj = error('unimplemented')
-array = error('unimplemented')
+	value = pkg.AltSplat(
+		pkg.App5(NewJsonValue, jsonString, _nilNumber, _nilKeyword, _nilObject, _nilArray),
+		pkg.App5(NewJsonValue, _nilJsonString, number, _nilKeyword, _nilObject, _nilArray),
+		pkg.App5(NewJsonValue, _nilJsonString, _nilNumber, keyword, _nilObject, _nilArray),
+		pkg.App5(NewJsonValue, _nilJsonString, _nilNumber, _nilKeyword, object, _nilArray),
+		pkg.App5(NewJsonValue, _nilJsonString, _nilNumber, _nilKeyword, _nilObject, array))
 
-value = alt([jsonstring, number, keyword, obj, array])
+	array.Parse = pkg.App3(NewArray,
+		os,
+		pkg.App(func(s *pkg.SepByResult[*JsonValue, rune]) []*JsonValue {
+			return s.Values()
+		}, pkg.SepBy0(value, comma)),
+		pkg.Cut("close", cs)).Parse
 
-array.parse = node('array',
-                   ('open', os),
-                   ('body', sepBy0(value, comma)),
-                   ('close', cut('close', cs))).parse
+	keyValPair = pkg.App3(NewKeyValPair,
+		jsonString,
+		pkg.Cut("colon", colon),
+		pkg.Cut("value", value))
 
-keyVal = node('key/value pair',
-              ('key', jsonstring),
-              ('colon', cut('colon', colon)),
-              ('value', cut('value', value)))
+	object.Parse = pkg.App3(NewObject,
+		oc,
+		pkg.App(func(s *pkg.SepByResult[*KeyValPair, rune]) []*KeyValPair {
+			return s.Values()
+		}, pkg.SepBy0(keyValPair, comma)),
+		pkg.Cut("close", cc)).Parse
 
-obj.parse = node('object',
-                 ('open', oc),
-                 ('body', sepBy0(keyVal, comma)),
-                 ('close', cut('close', cc))).parse
-
-_json = node('json',
-             ('value', value)) # alt(obj, array)),
-
-json = seq2L(seq2R(whitespace, cut('json value', _json)),
-             cut('unparsed input remaining', not0(item)))
-*/
+	json = pkg.Seq2L(
+		pkg.Seq2R(whitespace, pkg.Cut("json value", value)),
+		pkg.Cut("unparsed input remaining", pkg.Not0(item)))
+}

@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"github.com/mattfenwick/gunparse/pkg/maybeerror"
+	"github.com/mattfenwick/gunparse/pkg/utils"
 	"reflect"
 )
 
@@ -233,6 +234,28 @@ func AppP4[E, S, T, A, B, C, D, M any](
 	})
 }
 
+func AppP5[E, S, T, A, B, C, D, M, N any](
+	p1 *Parser[E, S, T, func(A, B, C, D, M) N],
+	p2 *Parser[E, S, T, A],
+	p3 *Parser[E, S, T, B],
+	p4 *Parser[E, S, T, C],
+	p5 *Parser[E, S, T, D],
+	p6 *Parser[E, S, T, M]) *Parser[E, S, T, N] {
+	return Bind[E, S, T, func(A, B, C, D, M) N](p1, func(f func(A, B, C, D, M) N) *Parser[E, S, T, N] {
+		return Bind[E, S, T, A](p2, func(x A) *Parser[E, S, T, N] {
+			return Bind[E, S, T, B](p3, func(y B) *Parser[E, S, T, N] {
+				return Bind[E, S, T, C](p4, func(z C) *Parser[E, S, T, N] {
+					return Bind[E, S, T, D](p5, func(l D) *Parser[E, S, T, N] {
+						return Bind[E, S, T, M](p6, func(m M) *Parser[E, S, T, N] {
+							return Pure[E, S, T, N](f(x, y, z, l, m))
+						})
+					})
+				})
+			})
+		})
+	})
+}
+
 func App[E, S, T, A, B any](f func(A) B, p *Parser[E, S, T, A]) *Parser[E, S, T, B] {
 	return AppP[E, S, T, A, B](Pure[E, S, T, func(A) B](f), p)
 }
@@ -259,6 +282,16 @@ func App4[E, S, T, A, B, C, D, M any](
 	p3 *Parser[E, S, T, C],
 	p4 *Parser[E, S, T, D]) *Parser[E, S, T, M] {
 	return AppP4[E, S, T, A, B, C, D, M](Pure[E, S, T, func(A, B, C, D) M](f), p1, p2, p3, p4)
+}
+
+func App5[E, S, T, A, B, C, D, M, N any](
+	f func(A, B, C, D, M) N,
+	p1 *Parser[E, S, T, A],
+	p2 *Parser[E, S, T, B],
+	p3 *Parser[E, S, T, C],
+	p4 *Parser[E, S, T, D],
+	p5 *Parser[E, S, T, M]) *Parser[E, S, T, N] {
+	return AppP5[E, S, T, A, B, C, D, M, N](Pure[E, S, T, func(A, B, C, D, M) N](f), p1, p2, p3, p4, p5)
 }
 
 func Seq2L[E, S, T, A, B any](p1 *Parser[E, S, T, A], p2 *Parser[E, S, T, B]) *Parser[E, S, T, A] {
@@ -412,7 +445,7 @@ func Not1[E, S, T, A any](i *Itemizer[E, S, T], parser *Parser[E, S, T, A]) *Par
 }
 
 func (i *Itemizer[E, S, T]) MatchString(xs []T) *Parser[E, S, T, []T] {
-	return Seq(mapList(i.Literal, xs))
+	return Seq(utils.MapList(i.Literal, xs))
 }
 
 func (i *Itemizer[E, S, T]) OneOf(elems []T) *Parser[E, S, T, T] {
