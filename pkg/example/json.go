@@ -30,8 +30,8 @@ func oneOf(s string) *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, rune] {
 	return itemizer.OneOf(StringToRunes(s))
 }
 
-func matchString(s string) *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, []rune] {
-	return itemizer.MatchString(StringToRunes(s))
+func matchString(s string) *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, string] {
+	return pkg.Seq2R(itemizer.MatchString(StringToRunes(s)), pkg.Pure[ParseError, *pkg.Pair[int, int], rune, string](s))
 }
 
 func not1[A any](p *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, A]) *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, rune] {
@@ -49,7 +49,7 @@ func StringToRunes(s string) []rune {
 var (
 	Whitespace = pkg.Many0(oneOf(" \t\n\r"))
 
-	PrivateDigits = pkg.Many0(oneOf("0123456789"))
+	PrivateDigits = pkg.Many1(oneOf("0123456789"))
 
 	PrivateDecimal = pkg.App2(NewDecimal, literal('.'), pkg.Cut("digits", PrivateDigits))
 
@@ -117,12 +117,12 @@ var (
 	NumberParser  = token(PrivateNumber)
 	KeywordParser = token(PrivateKeyword)
 
-	os    = token(literal('['))
-	cs    = token(literal(']'))
-	oc    = token(literal('{'))
-	cc    = token(literal('}'))
-	comma = token(literal(','))
-	colon = token(literal(':'))
+	OpenSquare  = token(literal('['))
+	CloseSquare = token(literal(']'))
+	OpenCurly   = token(literal('{'))
+	CloseCurly  = token(literal('}'))
+	Comma       = token(literal(','))
+	Colon       = token(literal(':'))
 )
 
 var (
@@ -152,23 +152,23 @@ func init() {
 		pkg.App5(NewJsonValue, _nilString, _nilNumber, _nilKeyword, _nilObject, ArrayParser))
 
 	ArrayParser.Parse = pkg.App3(NewArray,
-		os,
+		OpenSquare,
 		pkg.App(func(s *pkg.SepByResult[*JsonValue, rune]) []*JsonValue {
 			return s.Values()
-		}, pkg.SepBy0(ValueParser, comma)),
-		pkg.Cut("close", cs)).Parse
+		}, pkg.SepBy0(ValueParser, Comma)),
+		pkg.Cut("close", CloseSquare)).Parse
 
 	KeyValPairParser = pkg.App3(NewKeyValPair,
 		StringParser,
-		pkg.Cut("colon", colon),
+		pkg.Cut("colon", Colon),
 		pkg.Cut("value", ValueParser))
 
 	ObjectParser.Parse = pkg.App3(NewObject,
-		oc,
+		OpenCurly,
 		pkg.App(func(s *pkg.SepByResult[*KeyValPair, rune]) []*KeyValPair {
 			return s.Values()
-		}, pkg.SepBy0(KeyValPairParser, comma)),
-		pkg.Cut("close", cc)).Parse
+		}, pkg.SepBy0(KeyValPairParser, Comma)),
+		pkg.Cut("close", CloseCurly)).Parse
 
 	JsonParser = pkg.Seq2L(
 		pkg.Seq2R(Whitespace, pkg.Cut("json value", ValueParser)),

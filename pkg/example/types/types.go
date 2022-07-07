@@ -47,7 +47,7 @@ var (
 			{"Open", "rune"},
 			{"Value", "rune"}}},
 		{"UnicodeEscape", []*Field{
-			{"Open", "[]rune"},
+			{"Open", "string"},
 			{"Value", "[]rune"}}},
 		{"StringChar", []*Field{
 			{"Char", "*Character"},
@@ -58,7 +58,7 @@ var (
 			{"Value", "[]*StringChar"},
 			{"Close", "rune"}}},
 		{"Keyword", []*Field{
-			{"Value", "[]rune"}}},
+			{"Value", "string"}}},
 		{"KeyValPair", []*Field{
 			{"Key", "*String"},
 			{"Colon", "rune"},

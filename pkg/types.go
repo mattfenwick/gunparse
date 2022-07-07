@@ -26,6 +26,9 @@ func NewSepByResult[A, B any](first A, pairs []*Pair[B, A]) *SepByResult[A, B] {
 }
 
 func (s *SepByResult[A, B]) Values() []A {
+	if s == nil {
+		return nil
+	}
 	vals := []A{s.First}
 	for _, p := range s.Pairs {
 		vals = append(vals, p.B)

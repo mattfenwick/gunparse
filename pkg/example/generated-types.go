@@ -65,11 +65,11 @@ func NewEscape(open rune, value rune) *Escape {
 }
 
 type UnicodeEscape struct {
-	Open  []rune
+	Open  string
 	Value []rune
 }
 
-func NewUnicodeEscape(open []rune, value []rune) *UnicodeEscape {
+func NewUnicodeEscape(open string, value []rune) *UnicodeEscape {
 	return &UnicodeEscape{
 		Open:  open,
 		Value: value,
@@ -105,10 +105,10 @@ func NewString(open rune, value []*StringChar, close rune) *String {
 }
 
 type Keyword struct {
-	Value []rune
+	Value string
 }
 
-func NewKeyword(value []rune) *Keyword {
+func NewKeyword(value string) *Keyword {
 	return &Keyword{
 		Value: value,
 	}

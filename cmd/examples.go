@@ -17,9 +17,19 @@ func main() {
 		"false 123",
 		"abc",
 		"",
+		"[[[]],[]]",
+		"{",
+		"[,[,[abc",
+		`[1, "abc", [[]], true, null, {"a": 1, "a": 2}]`,
 	}
+
+	//parser := example.ValueParser
+	parser := example.ArrayParser
+	//parser := example.ObjectParser
+	//parser := pkg.SepBy0(example.OpenSquare, example.Comma)
+
 	for _, s := range strings {
-		result := example.KeywordParser.Parse(example.StringToRunes(s), pkg.NewPair(1, 1))
+		result := parser.Parse(example.StringToRunes(s), pkg.NewPair(1, 1))
 		dumped, err := json.MarshalIndent(result, "", "  ")
 		utils.DoOrDie(err)
 		fmt.Printf("%s\n\n", dumped)
