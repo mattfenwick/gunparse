@@ -27,18 +27,18 @@ var (
 )
 
 func oneOf(s string) *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, rune] {
-	return itemizer.OneOf(stringToRunes(s))
+	return itemizer.OneOf(StringToRunes(s))
 }
 
 func matchString(s string) *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, []rune] {
-	return itemizer.MatchString(stringToRunes(s))
+	return itemizer.MatchString(StringToRunes(s))
 }
 
 func not1[A any](p *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, A]) *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, rune] {
 	return pkg.Not1[ParseError, *pkg.Pair[int, int], rune, A](itemizer, p)
 }
 
-func stringToRunes(s string) []rune {
+func StringToRunes(s string) []rune {
 	var out []rune
 	for i := 0; i < len(s); i++ {
 		out = append(out, rune(s[i]))
@@ -47,75 +47,75 @@ func stringToRunes(s string) []rune {
 }
 
 var (
-	whitespace = pkg.Many0(oneOf(" \t\n\r"))
+	Whitespace = pkg.Many0(oneOf(" \t\n\r"))
 
-	_digits = pkg.Many0(oneOf("0123456789"))
+	PrivateDigits = pkg.Many0(oneOf("0123456789"))
 
-	_decimal = pkg.App2(NewDecimal, literal('.'), pkg.Cut("digits", _digits))
+	PrivateDecimal = pkg.App2(NewDecimal, literal('.'), pkg.Cut("digits", PrivateDigits))
 
-	_exponent = pkg.App3(NewExponent,
+	PrivateExponent = pkg.App3(NewExponent,
 		oneOf("eE"),
 		pkg.Optional(oneOf("+-"), '+'), // TODO losing CST information by inserting default '+'
-		pkg.Cut("power", _digits))
+		pkg.Cut("power", PrivateDigits))
 
-	_number_1 = pkg.App4(NewNumber,
+	PrivateNumber_1 = pkg.App4(NewNumber,
 		literal('-'),
-		pkg.Cut("digits", _digits),
-		pkg.Optional(_decimal, nil),
-		pkg.Optional(_exponent, nil))
+		pkg.Cut("digits", PrivateDigits),
+		pkg.Optional(PrivateDecimal, nil),
+		pkg.Optional(PrivateExponent, nil))
 
-	_number_2 = pkg.App4(NewNumber,
+	PrivateNumber_2 = pkg.App4(NewNumber,
 		pkg.Pure[ParseError, *pkg.Pair[int, int], rune]('+'),
-		_digits,
-		pkg.Optional(_decimal, nil),
-		pkg.Optional(_exponent, nil))
+		PrivateDigits,
+		pkg.Optional(PrivateDecimal, nil),
+		pkg.Optional(PrivateExponent, nil))
 
 	// there are two number patterns solely to get the error reporting right
 	//   if there's a `-` but a number can't be parsed, that's an error
-	_number = pkg.AltSplat(_number_1, _number_2)
+	PrivateNumber = pkg.AltSplat(PrivateNumber_1, PrivateNumber_2)
 
-	_char = pkg.App(NewCharacter, not1(oneOf("\\\"")))
+	PrivateChar = pkg.App(NewCharacter, not1(oneOf("\\\"")))
 
 	// this allows *any* character to be escaped
 	//   invalid characters are handled by a later pass
 	//   this assumes that doing so will not change the
 	//   overall structure of the parse result
-	_escape = pkg.App2(NewEscape,
+	PrivateEscape = pkg.App2(NewEscape,
 		literal('\\'),
 		item)
 
-	_hexC = oneOf("0123456789abcdefABCDEF")
+	PrivateHexC = oneOf("0123456789abcdefABCDEF")
 
-	_unic = pkg.App2(NewUnicodeEscape,
+	PrivateUnicode = pkg.App2(NewUnicodeEscape,
 		matchString("\\u"),
-		pkg.Cut("4 hexadecimal digits", pkg.Repeat(4, _hexC)))
+		pkg.Cut("4 hexadecimal digits", pkg.Repeat(4, PrivateHexC)))
 
 	_nilChar          = pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *Character](nil)
 	_nilEscape        = pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *Escape](nil)
 	_nilUnicodeEscape = pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *UnicodeEscape](nil)
 
-	_jsonStringChar = pkg.AltSplat[ParseError, *pkg.Pair[int, int], rune, *JsonStringChar](
-		pkg.App3(NewJsonStringChar, _char, _nilEscape, _nilUnicodeEscape),
-		pkg.App3(NewJsonStringChar, _nilChar, _nilEscape, _unic),
-		pkg.App3(NewJsonStringChar, _nilChar, _escape, _nilUnicodeEscape))
+	PrivateJsonStringChar = pkg.AltSplat[ParseError, *pkg.Pair[int, int], rune, *StringChar](
+		pkg.App3(NewStringChar, PrivateChar, _nilEscape, _nilUnicodeEscape),
+		pkg.App3(NewStringChar, _nilChar, _nilEscape, PrivateUnicode),
+		pkg.App3(NewStringChar, _nilChar, PrivateEscape, _nilUnicodeEscape))
 
-	_jsonString = pkg.App3(NewJsonString,
+	PrivateJsonString = pkg.App3(NewString,
 		literal('"'),
-		pkg.Many0(_jsonStringChar),
+		pkg.Many0(PrivateJsonStringChar),
 		pkg.Cut("double-quote", literal('"')))
 
-	_keyword = pkg.App(NewKeyword,
+	PrivateKeyword = pkg.App(NewKeyword,
 		pkg.Alt(utils.MapList(matchString, []string{"true", "false", "null"})))
 )
 
 func token[A any](p *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, A]) *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, A] {
-	return pkg.Seq2L(p, whitespace)
+	return pkg.Seq2L(p, Whitespace)
 }
 
 var (
-	jsonString = token(_jsonString)
-	number     = token(_number)
-	keyword    = token(_keyword)
+	StringParser  = token(PrivateJsonString)
+	NumberParser  = token(PrivateNumber)
+	KeywordParser = token(PrivateKeyword)
 
 	os    = token(literal('['))
 	cs    = token(literal(']'))
@@ -126,51 +126,51 @@ var (
 )
 
 var (
-	object     *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, *Object]     = nil
-	array      *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, *Array]      = nil
-	value      *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, *JsonValue]  = nil
-	keyValPair *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, *KeyValPair] = nil
-	json       *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, *JsonValue]  = nil
+	ObjectParser     *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, *Object]     = nil
+	ArrayParser      *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, *Array]      = nil
+	ValueParser      *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, *JsonValue]  = nil
+	KeyValPairParser *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, *KeyValPair] = nil
+	JsonParser       *pkg.Parser[ParseError, *pkg.Pair[int, int], rune, *JsonValue]  = nil
 )
 
 func init() {
 	// a hack to allow mutual recursion of rules
-	object = pkg.NewError[ParseError, *pkg.Pair[int, int], rune, *Object]([]*ErrorFrame{NewErrorFrame("unimplemented", -1, -1)})
-	array = pkg.NewError[ParseError, *pkg.Pair[int, int], rune, *Array]([]*ErrorFrame{NewErrorFrame("unimplemented", -1, -1)})
+	ObjectParser = pkg.NewError[ParseError, *pkg.Pair[int, int], rune, *Object]([]*ErrorFrame{NewErrorFrame("unimplemented", -1, -1)})
+	ArrayParser = pkg.NewError[ParseError, *pkg.Pair[int, int], rune, *Array]([]*ErrorFrame{NewErrorFrame("unimplemented", -1, -1)})
 
-	_nilJsonString := pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *JsonString](nil)
+	_nilString := pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *String](nil)
 	_nilNumber := pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *Number](nil)
 	_nilKeyword := pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *Keyword](nil)
 	_nilObject := pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *Object](nil)
 	_nilArray := pkg.Pure[ParseError, *pkg.Pair[int, int], rune, *Array](nil)
 
-	value = pkg.AltSplat(
-		pkg.App5(NewJsonValue, jsonString, _nilNumber, _nilKeyword, _nilObject, _nilArray),
-		pkg.App5(NewJsonValue, _nilJsonString, number, _nilKeyword, _nilObject, _nilArray),
-		pkg.App5(NewJsonValue, _nilJsonString, _nilNumber, keyword, _nilObject, _nilArray),
-		pkg.App5(NewJsonValue, _nilJsonString, _nilNumber, _nilKeyword, object, _nilArray),
-		pkg.App5(NewJsonValue, _nilJsonString, _nilNumber, _nilKeyword, _nilObject, array))
+	ValueParser = pkg.AltSplat(
+		pkg.App5(NewJsonValue, StringParser, _nilNumber, _nilKeyword, _nilObject, _nilArray),
+		pkg.App5(NewJsonValue, _nilString, NumberParser, _nilKeyword, _nilObject, _nilArray),
+		pkg.App5(NewJsonValue, _nilString, _nilNumber, KeywordParser, _nilObject, _nilArray),
+		pkg.App5(NewJsonValue, _nilString, _nilNumber, _nilKeyword, ObjectParser, _nilArray),
+		pkg.App5(NewJsonValue, _nilString, _nilNumber, _nilKeyword, _nilObject, ArrayParser))
 
-	array.Parse = pkg.App3(NewArray,
+	ArrayParser.Parse = pkg.App3(NewArray,
 		os,
 		pkg.App(func(s *pkg.SepByResult[*JsonValue, rune]) []*JsonValue {
 			return s.Values()
-		}, pkg.SepBy0(value, comma)),
+		}, pkg.SepBy0(ValueParser, comma)),
 		pkg.Cut("close", cs)).Parse
 
-	keyValPair = pkg.App3(NewKeyValPair,
-		jsonString,
+	KeyValPairParser = pkg.App3(NewKeyValPair,
+		StringParser,
 		pkg.Cut("colon", colon),
-		pkg.Cut("value", value))
+		pkg.Cut("value", ValueParser))
 
-	object.Parse = pkg.App3(NewObject,
+	ObjectParser.Parse = pkg.App3(NewObject,
 		oc,
 		pkg.App(func(s *pkg.SepByResult[*KeyValPair, rune]) []*KeyValPair {
 			return s.Values()
-		}, pkg.SepBy0(keyValPair, comma)),
+		}, pkg.SepBy0(KeyValPairParser, comma)),
 		pkg.Cut("close", cc)).Parse
 
-	json = pkg.Seq2L(
-		pkg.Seq2R(whitespace, pkg.Cut("json value", value)),
+	JsonParser = pkg.Seq2L(
+		pkg.Seq2R(Whitespace, pkg.Cut("json value", ValueParser)),
 		pkg.Cut("unparsed input remaining", pkg.Not0(item)))
 }

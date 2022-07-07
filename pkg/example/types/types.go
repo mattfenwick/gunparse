@@ -49,18 +49,18 @@ var (
 		{"UnicodeEscape", []*Field{
 			{"Open", "[]rune"},
 			{"Value", "[]rune"}}},
-		{"JsonStringChar", []*Field{
+		{"StringChar", []*Field{
 			{"Char", "*Character"},
 			{"Escape", "*Escape"},
 			{"UnicodeEscape", "*UnicodeEscape"}}},
-		{"JsonString", []*Field{
+		{"String", []*Field{
 			{"Open", "rune"},
-			{"Value", "[]*JsonStringChar"},
+			{"Value", "[]*StringChar"},
 			{"Close", "rune"}}},
 		{"Keyword", []*Field{
 			{"Value", "[]rune"}}},
 		{"KeyValPair", []*Field{
-			{"Key", "*JsonString"},
+			{"Key", "*String"},
 			{"Colon", "rune"},
 			{"Value", "*JsonValue"}}},
 		{"Array", []*Field{
@@ -72,7 +72,7 @@ var (
 			{"Body", "[]*KeyValPair"},
 			{"Close", "rune"}}},
 		{"JsonValue", []*Field{
-			{"String", "*JsonString"},
+			{"String", "*String"},
 			{"Number", "*Number"},
 			{"Keyword", "*Keyword"},
 			{"Object", "*Object"},

@@ -76,28 +76,28 @@ func NewUnicodeEscape(open []rune, value []rune) *UnicodeEscape {
 	}
 }
 
-type JsonStringChar struct {
+type StringChar struct {
 	Char          *Character
 	Escape        *Escape
 	UnicodeEscape *UnicodeEscape
 }
 
-func NewJsonStringChar(char *Character, escape *Escape, unicodeescape *UnicodeEscape) *JsonStringChar {
-	return &JsonStringChar{
+func NewStringChar(char *Character, escape *Escape, unicodeescape *UnicodeEscape) *StringChar {
+	return &StringChar{
 		Char:          char,
 		Escape:        escape,
 		UnicodeEscape: unicodeescape,
 	}
 }
 
-type JsonString struct {
+type String struct {
 	Open  rune
-	Value []*JsonStringChar
+	Value []*StringChar
 	Close rune
 }
 
-func NewJsonString(open rune, value []*JsonStringChar, close rune) *JsonString {
-	return &JsonString{
+func NewString(open rune, value []*StringChar, close rune) *String {
+	return &String{
 		Open:  open,
 		Value: value,
 		Close: close,
@@ -115,12 +115,12 @@ func NewKeyword(value []rune) *Keyword {
 }
 
 type KeyValPair struct {
-	Key   *JsonString
+	Key   *String
 	Colon rune
 	Value *JsonValue
 }
 
-func NewKeyValPair(key *JsonString, colon rune, value *JsonValue) *KeyValPair {
+func NewKeyValPair(key *String, colon rune, value *JsonValue) *KeyValPair {
 	return &KeyValPair{
 		Key:   key,
 		Colon: colon,
@@ -157,14 +157,14 @@ func NewObject(open rune, body []*KeyValPair, close rune) *Object {
 }
 
 type JsonValue struct {
-	String  *JsonString
+	String  *String
 	Number  *Number
 	Keyword *Keyword
 	Object  *Object
 	Array   *Array
 }
 
-func NewJsonValue(string *JsonString, number *Number, keyword *Keyword, object *Object, array *Array) *JsonValue {
+func NewJsonValue(string *String, number *Number, keyword *Keyword, object *Object, array *Array) *JsonValue {
 	return &JsonValue{
 		String:  string,
 		Number:  number,
