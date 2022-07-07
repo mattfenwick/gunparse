@@ -214,6 +214,25 @@ func AppP3[E, S, T, A, B, C, D any](
 	})
 }
 
+func AppP4[E, S, T, A, B, C, D, M any](
+	p1 *Parser[E, S, T, func(A, B, C, D) M],
+	p2 *Parser[E, S, T, A],
+	p3 *Parser[E, S, T, B],
+	p4 *Parser[E, S, T, C],
+	p5 *Parser[E, S, T, D]) *Parser[E, S, T, M] {
+	return Bind[E, S, T, func(A, B, C, D) M](p1, func(f func(A, B, C, D) M) *Parser[E, S, T, M] {
+		return Bind[E, S, T, A](p2, func(x A) *Parser[E, S, T, M] {
+			return Bind[E, S, T, B](p3, func(y B) *Parser[E, S, T, M] {
+				return Bind[E, S, T, C](p4, func(z C) *Parser[E, S, T, M] {
+					return Bind[E, S, T, D](p5, func(l D) *Parser[E, S, T, M] {
+						return Pure[E, S, T, M](f(x, y, z, l))
+					})
+				})
+			})
+		})
+	})
+}
+
 func App[E, S, T, A, B any](f func(A) B, p *Parser[E, S, T, A]) *Parser[E, S, T, B] {
 	return AppP[E, S, T, A, B](Pure[E, S, T, func(A) B](f), p)
 }
@@ -230,7 +249,16 @@ func App3[E, S, T, A, B, C, D any](
 	p1 *Parser[E, S, T, A],
 	p2 *Parser[E, S, T, B],
 	p3 *Parser[E, S, T, C]) *Parser[E, S, T, D] {
-	return AppP3[E, S, T, A, B, C](Pure[E, S, T, func(A, B, C) D](f), p1, p2, p3)
+	return AppP3[E, S, T, A, B, C, D](Pure[E, S, T, func(A, B, C) D](f), p1, p2, p3)
+}
+
+func App4[E, S, T, A, B, C, D, M any](
+	f func(A, B, C, D) M,
+	p1 *Parser[E, S, T, A],
+	p2 *Parser[E, S, T, B],
+	p3 *Parser[E, S, T, C],
+	p4 *Parser[E, S, T, D]) *Parser[E, S, T, M] {
+	return AppP4[E, S, T, A, B, C, D, M](Pure[E, S, T, func(A, B, C, D) M](f), p1, p2, p3, p4)
 }
 
 func Seq2L[E, S, T, A, B any](p1 *Parser[E, S, T, A], p2 *Parser[E, S, T, B]) *Parser[E, S, T, A] {
