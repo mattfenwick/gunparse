@@ -4,7 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/mattfenwick/gunparse/pkg/utils"
+	"reflect"
+	"strconv"
 )
+
+type MySlice []int
 
 func main() {
 	a := &StuffA{Const: "mnop"}
@@ -19,12 +23,22 @@ func main() {
 	fmt.Println(Example(a, a))
 	fmt.Println(Example(c, c))
 
-	g := &Generic[string, Getter[string], Setter[string]]{
+	g := &Generic[StringAlias, Getter[StringAlias], Setter[StringAlias]]{
 		A: "abc",
 	}
-	g.B = &GetterImpl[string]{A: "qrs"} // g
+	g.B = &GetterImpl[StringAlias]{A: "qrs"} // g
 	g.C = g
 	fmt.Printf("%+v\n%s\n", g.Get(), g.GenericFunc())
+
+	xs := MySlice{1, 2, 3, 4, 5, 6}
+	doubled := Double(xs)
+	doubledChanges := DoubleChangesType(xs)
+	fmt.Printf("%+v  %s\n%+v  %s\n%s\n",
+		doubled, reflect.TypeOf(doubled),
+		doubledChanges, reflect.TypeOf(doubledChanges),
+		reflect.TypeOf(xs))
+
+	EqExample()
 }
 
 type Stuff interface {
@@ -59,8 +73,58 @@ func Example[A any](a A, b A) string {
 	return string(dumped)
 }
 
+// StringAlias is a "type definition", NOT a type alias
+//   a type definition can be used with an interface type constraint
+//   i.e. "~string" , whereas without the "~",
+//   this couldn't be used where a string is needed
+type StringAlias string
+
 type IntOrString interface {
-	int | string
+	int | ~string
+}
+
+type Wrapper[T IntOrString] struct {
+	T T
+}
+
+func (w *Wrapper[T]) GetInt() (int, error) {
+	return 0, nil
+	// looks like we can't do this
+	//switch v := w.T.(type) {
+	//case int:
+	//	return v, nil
+	//case string:
+	//	return 0, errors.Errorf("can't get int -- have string")
+	//default:
+	//	panic("this is impossible")
+	//}
+}
+
+func WrapperExample() {
+	//w := &Wrapper[int]{T: 3}
+	//w1 := &Wrapper[string]{T: "qrs"}
+}
+
+// Note: these functions cannot be written; compiler error:
+//   interface contains type constraints
+//func ReturnIntOrString() IntOrString {
+//	return 3
+//}
+//func ConsumeIntOrString(iors IntOrString) {
+//
+//}
+// this is illegal because of the T: "cannot embed a type parameter"
+//type IllegalInterface[T any] interface {
+//	int | uint | T
+//}
+// this is illegal because: "cannot use error in union (error contains methods)"
+//type ErrorOrInt interface {
+//	error | int
+//}
+// ErrorAndInt however, *is* legal:
+type ErrorAndInt interface {
+	int
+	error
 }
 
 type Setter[A any] interface {
@@ -99,4 +163,103 @@ func (g *Generic[A, B, C]) Get() A {
 
 func (g *Generic[A, B, C]) Set(a A) {
 	g.A = a
+}
+
+type Integer interface {
+	uint | uint8 | uint16 | uint32 | uint64 | int | int8 | int16 | int32 | int64
+}
+
+// Double is kinda weird, this is how you get typedefs to get carried through to return values
+//   see https://go.googlesource.com/proposal/+/refs/heads/master/design/43651-type-parameters.md#element-constraint-example
+//   compare to: Double[A Integer](xs []A) []A , where the return type is different
+func Double[S ~[]A, A Integer](xs S) S {
+	r := make([]A, len(xs))
+	for i, v := range xs {
+		r[i] = v + v
+	}
+	return r
+}
+
+func DoubleChangesType[A Integer](xs []A) []A {
+	r := make([]A, len(xs))
+	for i, v := range xs {
+		r[i] = v + v
+	}
+	return r
+}
+
+// ExampleSetter is from: https://go.googlesource.com/proposal/+/refs/heads/master/design/43651-type-parameters.md#pointer-method-example
+type ExampleSetter interface {
+	Set(string)
+}
+
+func FromStrings[T ExampleSetter](s []string) []T {
+	result := make([]T, len(s))
+	for i, v := range s {
+		result[i].Set(v)
+	}
+	return result
+}
+
+type Settable int
+
+func (p *Settable) Set(s string) {
+	i, err := strconv.Atoi(s)
+	utils.DoOrDie(err)
+	*p = Settable(i)
+}
+
+func SettableExample() {
+	//nums := FromStrings[Settable]([]string{"1", "2"}) // doesn't compile
+	nums := FromStrings[*Settable]([]string{"1", "2"})
+	fmt.Printf("%s  %+v\n", reflect.TypeOf(nums), nums)
+}
+
+// this example is from: https://go.googlesource.com/proposal/+/refs/heads/master/design/43651-type-parameters.md#using-types-that-refer-to-themselves-in-constraints
+
+type Eq[T any] interface {
+	Equal(T) bool
+}
+
+type Uint uint
+
+func (u Uint) Equal(y Uint) bool {
+	return u == y
+}
+
+func Index[T Eq[T]](s []T, e T) int {
+	for i, v := range s {
+		if e.Equal(v) {
+			return i
+		}
+	}
+	return -1
+}
+
+func EqExample() {
+	a := []Uint{1, 2, 3, 4, 5}
+	for _, x := range []Uint{0, 2, 4, 6, 8} {
+		fmt.Printf("looking for %d: result %d\n", x, Index(a, x))
+	}
+}
+
+// By combining ~ constraints and method constraints, it may be possible to
+//   to create a set of wrappers for built-in golang functionality that get
+//   rid of the magic of builtins so they can be used in a principled, consistent way
+//  see https://go.googlesource.com/proposal/+/refs/heads/master/design/43651-type-parameters.md#both-elements-and-methods-in-constraints
+
+type byteseq interface {
+	string | []byte
+}
+
+func Join[T byteseq](a T, sep T) {
+
+}
+
+func Eg() {
+	a := "abc"
+	b := []byte(a)
+	Join(a, a)
+	Join(b, b)
+	//Join(a, b)
 }
