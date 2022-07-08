@@ -3,7 +3,6 @@ package pkg
 import (
 	"github.com/mattfenwick/gunparse/pkg/maybeerror"
 	"github.com/mattfenwick/gunparse/pkg/utils"
-	"reflect"
 )
 
 type Parser[E, S, T, A any] struct {
@@ -407,12 +406,12 @@ func SepBy0[E, S, T, A, B any](parser *Parser[E, S, T, A], separator *Parser[E, 
 	return Optional[E, S, T, *SepByResult[A, B]](SepBy1[E, S, T, A, B](parser, separator), nil)
 }
 
-type Itemizer[E, S, T any] struct {
+type Itemizer[E any, S any, T comparable] struct {
 	ProcessState func(T, S) S
 	Item         *Parser[E, S, T, T]
 }
 
-func NewItemizer[E, S, T any](processState func(T, S) S) *Itemizer[E, S, T] {
+func NewItemizer[E, S any, T comparable](processState func(T, S) S) *Itemizer[E, S, T] {
 	it := &Itemizer[E, S, T]{ProcessState: processState}
 	it.Item = it.item()
 	return it
@@ -436,11 +435,11 @@ func (i *Itemizer[E, S, T]) Satisfy(pred func(T) bool) *Parser[E, S, T, T] {
 
 func (i *Itemizer[E, S, T]) Literal(x T) *Parser[E, S, T, T] {
 	return i.Satisfy(func(y T) bool {
-		return reflect.DeepEqual(x, y)
+		return x == y
 	})
 }
 
-func Not1[E, S, T, A any](i *Itemizer[E, S, T], parser *Parser[E, S, T, A]) *Parser[E, S, T, T] {
+func Not1[E, S any, T comparable, A any](i *Itemizer[E, S, T], parser *Parser[E, S, T, A]) *Parser[E, S, T, T] {
 	return Seq2R(Not0(parser), i.Item)
 }
 
@@ -458,7 +457,7 @@ func (i *Itemizer[E, S, T]) OneOf(elems []T) *Parser[E, S, T, T] {
 	})
 }
 
-func BasicItemizer[E, S, T any]() *Itemizer[E, S, T] {
+func BasicItemizer[E, S any, T comparable]() *Itemizer[E, S, T] {
 	return NewItemizer[E, S, T](second[T, S])
 }
 
@@ -474,7 +473,7 @@ func PositionItemizer[E any]() *Itemizer[E, *Pair[int, int], rune] {
 	})
 }
 
-func CountItemizer[E, T any]() *Itemizer[E, int, T] {
+func CountItemizer[E any, T comparable]() *Itemizer[E, int, T] {
 	return NewItemizer[E, int, T](func(t T, s int) int {
 		return s + 1
 	})
