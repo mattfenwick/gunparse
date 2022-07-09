@@ -1,39 +1,40 @@
 package generics
 
-import "fmt"
-
 // this example is from: https://go.googlesource.com/proposal/+/refs/heads/master/design/43651-type-parameters.md#using-types-that-refer-to-themselves-in-constraints
 
 type Eq[T any] interface {
 	Equal(T) bool
 }
 
-type Uint uint
-
-func (u Uint) Equal(y Uint) bool {
-	return u == y
+func (a Int) Equal(b Int) bool {
+	return a == b
 }
 
-type Comparable[T comparable] struct {
-	T T
+func (a Uint) Equal(b Uint) bool {
+	return a == b
 }
 
-func (c *Comparable[T]) Equal(other *Comparable[T]) bool {
-	return c.T == other.T
+func (a Bool) Equal(b Bool) bool {
+	return a == b
 }
 
-func Index[T Eq[T]](s []T, e T) int {
-	for i, v := range s {
-		if e.Equal(v) {
-			return i
+func (a String) Equal(b String) bool {
+	return a == b
+}
+
+func (xs SliceEq[A]) Equal(ys SliceEq[A]) bool {
+	if len(xs) != len(ys) {
+		return false
+	}
+	for i := range xs {
+		if !xs[i].Equal(ys[i]) {
+			return false
 		}
 	}
-	return -1
+	return true
 }
 
-func EqExample() {
-	a := []Uint{1, 2, 3, 4, 5}
-	for _, x := range []Uint{0, 2, 4, 6, 8} {
-		fmt.Printf("looking for %d: result %d\n", x, Index(a, x))
-	}
-}
+// TODO any way to use this?
+//func EqualComparable[T comparable](a T, b T) bool {
+//	return a == b
+//}
