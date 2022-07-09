@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/mattfenwick/gunparse/pkg/generics"
 	"github.com/mattfenwick/gunparse/pkg/utils"
 	"reflect"
 	"strconv"
@@ -38,7 +39,7 @@ func main() {
 		doubledChanges, reflect.TypeOf(doubledChanges),
 		reflect.TypeOf(xs))
 
-	EqExample()
+	generics.EqExample()
 }
 
 type Stuff interface {
@@ -215,34 +216,6 @@ func SettableExample() {
 	fmt.Printf("%s  %+v\n", reflect.TypeOf(nums), nums)
 }
 
-// this example is from: https://go.googlesource.com/proposal/+/refs/heads/master/design/43651-type-parameters.md#using-types-that-refer-to-themselves-in-constraints
-
-type Eq[T any] interface {
-	Equal(T) bool
-}
-
-type Uint uint
-
-func (u Uint) Equal(y Uint) bool {
-	return u == y
-}
-
-func Index[T Eq[T]](s []T, e T) int {
-	for i, v := range s {
-		if e.Equal(v) {
-			return i
-		}
-	}
-	return -1
-}
-
-func EqExample() {
-	a := []Uint{1, 2, 3, 4, 5}
-	for _, x := range []Uint{0, 2, 4, 6, 8} {
-		fmt.Printf("looking for %d: result %d\n", x, Index(a, x))
-	}
-}
-
 // By combining ~ constraints and method constraints, it may be possible to
 //   to create a set of wrappers for built-in golang functionality that get
 //   rid of the magic of builtins so they can be used in a principled, consistent way
@@ -263,3 +236,10 @@ func Eg() {
 	Join(b, b)
 	//Join(a, b)
 }
+
+// TODO
+//type Monad[M, A any] interface {
+//	Join(m M[M[M, A], A])
+//}
+//
+//func Bind[M Monad[M, A], A any](m M, f func(A) M) {}

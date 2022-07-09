@@ -6,19 +6,21 @@ import (
 )
 
 type Parser[E, S, T, A any] struct {
-	Parse func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]]
+	Parse func(xs []T, s S) Result[E, S, T, A]
 }
 
-func NewParser[E, S, T, A any](parse func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]]) *Parser[E, S, T, A] {
+func NewParser[E, S, T, A any](parse func(xs []T, s S) Result[E, S, T, A]) *Parser[E, S, T, A] {
 	return &Parser[E, S, T, A]{Parse: parse}
 }
 
-func (p *Parser[E, S, T, A]) Run(input []T, state S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]] {
+func (p *Parser[E, S, T, A]) Run(input []T, state S) Result[E, S, T, A] {
 	return p.Parse(input, state)
 }
 
-func newParser[E, S, T, A any](f func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]]) *Parser[E, S, T, A] {
-	g := func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]] {
+type Result[E, S, T, A any] *maybeerror.MaybeError[E, *ParseResult[T, S, A]]
+
+func newParser[E, S, T, A any](f func(xs []T, s S) Result[E, S, T, A]) *Parser[E, S, T, A] {
+	g := func(xs []T, s S) Result[E, S, T, A] {
 		return f(xs, s)
 	}
 	return NewParser(g)
@@ -34,25 +36,25 @@ func result[T, S, A any](value A, rest []T, state S) *ParseResult[T, S, A] {
 	return &ParseResult[T, S, A]{Result: value, Rest: rest, State: state}
 }
 
-func good[E, S, T, A any](value A, rest []T, state S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]] {
+func good[E, S, T, A any](value A, rest []T, state S) Result[E, S, T, A] {
 	return maybeerror.NewSuccess[E, *ParseResult[T, S, A]](result(value, rest, state))
 }
 
 func Pure[E, S, T, A any](x A) *Parser[E, S, T, A] {
-	f := func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]] {
+	f := func(xs []T, s S) Result[E, S, T, A] {
 		return good[E, S, T, A](x, xs, s)
 	}
 	return NewParser(f)
 }
 
 func NewZero[E, S, T, A any]() *Parser[E, S, T, A] {
-	return NewParser[E, S, T, A](func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]] {
+	return NewParser[E, S, T, A](func(xs []T, s S) Result[E, S, T, A] {
 		return maybeerror.NewFailure[E, *ParseResult[T, S, A]]()
 	})
 }
 
 func NewError[E, S, T, A any](e E) *Parser[E, S, T, A] {
-	return NewParser[E, S, T, A](func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]] {
+	return NewParser[E, S, T, A](func(xs []T, s S) Result[E, S, T, A] {
 		return maybeerror.NewError[E, *ParseResult[T, S, A]](e)
 	})
 }
@@ -61,13 +63,13 @@ func Fmap[E, S, T, A, B any](g func(A) B, parser *Parser[E, S, T, A]) *Parser[E,
 	h := func(p *ParseResult[T, S, A]) *ParseResult[T, S, B] {
 		return &ParseResult[T, S, B]{Result: g(p.Result), Rest: p.Rest, State: p.State}
 	}
-	return NewParser[E, S, T, B](func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, B]] {
+	return NewParser[E, S, T, B](func(xs []T, s S) Result[E, S, T, B] {
 		return maybeerror.Fmap(parser.Parse(xs, s), h)
 	})
 }
 
 func Bind[E, S, T, A, B any](parser *Parser[E, S, T, A], g func(A) *Parser[E, S, T, B]) *Parser[E, S, T, B] {
-	f := func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, B]] {
+	f := func(xs []T, s S) Result[E, S, T, B] {
 		r := parser.Parse(xs, s)
 		if r.Success != nil {
 			val := r.Success.Value
@@ -90,7 +92,7 @@ func Check[E, S, T, A any](predicate func(A) bool, parser *Parser[E, S, T, A]) *
 }
 
 func Update[E, S, T any](f func([]T) []T) *Parser[E, S, T, []T] {
-	g := func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, []T]] {
+	g := func(xs []T, s S) Result[E, S, T, []T] {
 		ys := f(xs)
 		return good[E, S, T, []T](ys, ys, s)
 	}
@@ -102,14 +104,14 @@ func Get[E, S, T any]() *Parser[E, S, T, []T] {
 }
 
 func Put[E, S, T any](xs []T) *Parser[E, S, T, []T] {
-	f := func(ys []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, []T]] {
+	f := func(ys []T, s S) Result[E, S, T, []T] {
 		return good[E, S, T, []T](xs, xs, s)
 	}
 	return NewParser(f)
 }
 
 func UpdateState[E, S, T any](g func(S) S) *Parser[E, S, T, S] {
-	f := func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, S]] {
+	f := func(xs []T, s S) Result[E, S, T, S] {
 		newState := g(s)
 		return good[E, S, T, S](newState, xs, newState)
 	}
@@ -121,14 +123,14 @@ func GetState[E, S, T any]() *Parser[E, S, T, S] {
 }
 
 func PutState[E, S, T any](s2 S) *Parser[E, S, T, S] {
-	f := func(ys []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, S]] {
+	f := func(ys []T, s S) Result[E, S, T, S] {
 		return good[E, S, T, S](s2, ys, s)
 	}
 	return NewParser(f)
 }
 
 func Many0[E, S, T, A any](parser *Parser[E, S, T, A]) *Parser[E, S, T, []A] {
-	f := func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, []A]] {
+	f := func(xs []T, s S) Result[E, S, T, []A] {
 		vals := []A{}
 		tokens := xs
 		state := s
@@ -156,7 +158,7 @@ func Many1[E, S, T, A any](parser *Parser[E, S, T, A]) *Parser[E, S, T, []A] {
 }
 
 func Seq[E, S, T, A any](parsers []*Parser[E, S, T, A]) *Parser[E, S, T, []A] {
-	f := func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, []A]] {
+	f := func(xs []T, s S) Result[E, S, T, []A] {
 		vals := []A{}
 		state := s
 		tokens := xs
@@ -329,7 +331,7 @@ func Lookahead[E, S, T, A any](parser *Parser[E, S, T, A]) *Parser[E, S, T, A] {
 }
 
 func Not0[E, S, T, A any](parser *Parser[E, S, T, A]) *Parser[E, S, T, *Unit] {
-	f := func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, *Unit]] {
+	f := func(xs []T, s S) Result[E, S, T, *Unit] {
 		r := parser.Parse(xs, s)
 		if r.Error != nil {
 			return maybeerror.NewError[E, *ParseResult[T, S, *Unit]](r.Error.Value)
@@ -342,7 +344,7 @@ func Not0[E, S, T, A any](parser *Parser[E, S, T, A]) *Parser[E, S, T, *Unit] {
 }
 
 func Alt[E, S, T, A any](parsers []*Parser[E, S, T, A]) *Parser[E, S, T, A] {
-	f := func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]] {
+	f := func(xs []T, s S) Result[E, S, T, A] {
 		for _, p := range parsers {
 			r := p.Parse(xs, s)
 			if r.Success != nil {
@@ -365,7 +367,7 @@ func Optional[E, S, T, A any](parser *Parser[E, S, T, A], defaultValue A) *Parse
 }
 
 func CatchError[E, S, T, A any](parser *Parser[E, S, T, A], f func(E) *Parser[E, S, T, A]) *Parser[E, S, T, A] {
-	g := func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, A]] {
+	g := func(xs []T, s S) Result[E, S, T, A] {
 		v := parser.Parse(xs, s)
 		if v.Error != nil {
 			return f(v.Error.Value).Parse(xs, s)
@@ -418,7 +420,7 @@ func NewItemizer[E, S any, T comparable](processState func(T, S) S) *Itemizer[E,
 }
 
 func (i *Itemizer[E, S, T]) item() *Parser[E, S, T, T] {
-	g := func(xs []T, s S) *maybeerror.MaybeError[E, *ParseResult[T, S, T]] {
+	g := func(xs []T, s S) Result[E, S, T, T] {
 		if len(xs) == 0 {
 			return maybeerror.NewFailure[E, *ParseResult[T, S, T]]()
 		}
