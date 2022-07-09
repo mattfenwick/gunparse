@@ -26,15 +26,6 @@ import "fmt"
 //	return c.T == other.T
 //}
 
-func Index[T Eq[T]](s []T, e T) int {
-	for i, v := range s {
-		if e.Equal(v) {
-			return i
-		}
-	}
-	return -1
-}
-
 func EqExample() {
 	a := []Uint{1, 2, 3, 4, 5}
 	b := []Uint{0, 2, 4, 6, 8}

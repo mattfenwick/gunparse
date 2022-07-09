@@ -43,6 +43,16 @@ func Min[T Ord[T]](a T, b T) T {
 	return b
 }
 
+func (a Bool) Compare(b Bool) Ordering {
+	if a == b {
+		return OrderingEqual
+	}
+	if !a {
+		return OrderingLessThan
+	}
+	return OrderingGreaterThan
+}
+
 func (a Int) Compare(b Int) Ordering {
 	if a < b {
 		return OrderingLessThan
@@ -63,14 +73,14 @@ func (a Uint) Compare(b Uint) Ordering {
 	}
 }
 
-func (a Bool) Compare(b Bool) Ordering {
-	if a == b {
-		return OrderingEqual
-	}
-	if !a {
+func (a String) Compare(b String) Ordering {
+	if a < b {
 		return OrderingLessThan
+	} else if a == b {
+		return OrderingEqual
+	} else {
+		return OrderingGreaterThan
 	}
-	return OrderingGreaterThan
 }
 
 // Compare should work like in Haskell.  Examples from Haskell:
