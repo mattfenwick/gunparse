@@ -39,7 +39,7 @@ func main() {
 		doubledChanges, reflect.TypeOf(doubledChanges),
 		reflect.TypeOf(xs))
 
-	generics.EqExample()
+	generics.Example()
 }
 
 type Stuff interface {

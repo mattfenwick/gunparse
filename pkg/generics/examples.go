@@ -26,7 +26,26 @@ import "fmt"
 //	return c.T == other.T
 //}
 
+func Example() {
+	EqExample()
+}
+
+func (a Uint64) Equal(b Uint64) bool {
+	return a == b
+}
+
+func (a Uint64) Compare(b Uint64) Ordering {
+	if a < b {
+		return OrderingLessThan
+	} else if a == b {
+		return OrderingEqual
+	} else {
+		return OrderingGreaterThan
+	}
+}
+
 func EqExample() {
+	//auints := []uint{1,2,3,4,5}
 	a := []Uint{1, 2, 3, 4, 5}
 	b := []Uint{0, 2, 4, 6, 8}
 	for _, x := range b {
