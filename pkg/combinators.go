@@ -403,7 +403,8 @@ func SepBy1[E, S, T, A, B any](parser *Parser[E, S, T, A], separator *Parser[E, 
 }
 
 // SepBy0 is similar to SepBy1, except that if no instance of `parser` is found,
-//   it presents a value of `nil`.  TODO is this a bad idea?  Should there be a Maybe wrapper instead?
+//
+//	it presents a value of `nil`.  TODO is this a bad idea?  Should there be a Maybe wrapper instead?
 func SepBy0[E, S, T, A, B any](parser *Parser[E, S, T, A], separator *Parser[E, S, T, B]) *Parser[E, S, T, *SepByResult[A, B]] {
 	return Optional[E, S, T, *SepByResult[A, B]](SepBy1[E, S, T, A, B](parser, separator), nil)
 }
